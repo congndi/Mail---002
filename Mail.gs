@@ -157,3 +157,67 @@ function valuesToObject(array) {
 
   return newArray;
 }
+function sendEmailsOneByOne(emailDataList) {
+  for (let i = 0; i < emailDataList.length; i++) {
+    let email = emailDataList[i];
+    try {
+      MailApp.sendEmail({
+        to: email.to,
+        subject: email.subject,
+        htmlBody: email.body,
+      });
+
+      // Gọi hàm cập nhật giao diện từ client
+      SpreadsheetApp.flush(); // đảm bảo cập nhật được
+      const ui = HtmlService.createHtmlOutput(`<script>google.script.host.close();google.script.run.updateProgressClient(${i + 1}, ${emailDataList.length});</script>`);
+      SpreadsheetApp.getUi().showModalDialog(ui, "Đang gửi...");
+    } catch (e) {
+      Logger.log(`Lỗi khi gửi tới ${email.to}: ${e}`);
+    }
+  }
+}
+function getEmailData() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("EmailData");
+  const data = sheet.getDataRange().getValues();
+  const headers = data.shift();
+  return data.map(row => {
+    const email = {};
+    headers.forEach((key, i) => email[key] = row[i]);
+    return email;
+  });
+}
+
+function sendOneEmail(email) {
+  MailApp.sendEmail({
+    to: email.to,
+    subject: email.subject,
+    htmlBody: email.body
+  });
+}
+function startBulkSend() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("EmailData");
+  const data = sheet.getDataRange().getValues();
+  const headers = data.shift();
+  
+  let successCount = 0;
+  for (let i = 0; i < data.length; i++) {
+    const row = data[i];
+    const email = {};
+    headers.forEach((key, j) => email[key] = row[j]);
+
+    try {
+      MailApp.sendEmail({
+        to: email.to,
+        subject: email.subject,
+        htmlBody: email.body
+      });
+      successCount++;
+      sheet.getRange(i + 2, headers.length + 1).setValue("✅ Đã gửi");
+    } catch (e) {
+      sheet.getRange(i + 2, headers.length + 1).setValue("❌ Lỗi: " + e.message);
+    }
+  }
+
+  Logger.log(`Đã gửi ${successCount}/${data.length} email.`);
+}
+
