@@ -202,6 +202,70 @@
       })
 
 	</script>
+  <div id="progress">Đang chuẩn bị gửi email...</div>
+
+<script>
+  function updateProgress(current, total) {
+    document.getElementById("progress").innerText = `Đã gửi ${current}/${total} email`;
+  }
+
+  function showDoneMessage() {
+    document.getElementById("progress").innerText = "✅ Gửi email hoàn tất!";
+  }
+</script>
+<script>
+  function startSending() {
+    google.script.run.withSuccessHandler(function() {
+      console.log("Bắt đầu gửi email...");
+    }).getEmailDataAndSend; // sửa lại nếu tên hàm khác
+  }
+</script>
+<div id="progress">Đang gửi...</div>
+<button onclick="startSending()">Bắt đầu gửi</button>
+
+<script>
+  let emailList = [];
+  let total = 0;
+  let current = 0;
+
+  function startSending() {
+    document.getElementById("progress").innerText = "Đang tải danh sách email...";
+    google.script.run.withSuccessHandler(function(data) {
+      emailList = data;
+      total = data.length;
+      current = 0;
+      sendNext();
+    }).getEmailData(); // lấy danh sách từ Google Sheet
+  }
+
+  function sendNext() {
+  if (current < total) {
+    google.script.run.withSuccessHandler(function() {
+      current++;
+      document.getElementById("progress").innerText = `Đã gửi ${current}/${total} email`;
+      sendNext(); // tiếp tục gửi email tiếp theo
+    }).sendOneEmail(emailList[current]);
+  } 
+  
+  // ✅ Khi gửi xong hết email
+  else if (current >= total) {
+    document.getElementById("progress").innerText = "✅ Đã gửi xong toàn bộ email!";
+    setTimeout(() => google.script.host.close(), 3000); // đóng popup sau 3 giây
+  }
+}
+<p>Xác nhận gửi email?</p>
+<button onclick="sendEmails()">Gửi ngay</button>
+
+<script>
+  function sendEmails() {
+    google.script.run.withSuccessHandler(() => {
+      google.script.host.close(); // Đóng popup ngay
+    }).startBulkSend(); // Gọi hàm server gửi hàng loạt
+  }
+</script>
+
+</script>
+
 </body>
 
 </html>
