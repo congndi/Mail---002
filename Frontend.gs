@@ -27,3 +27,14 @@ function q_email_list(){
   })
   return {emails, quota: quota, success: true}
 }
+function updateProgressClient(current, total) {
+  const html = HtmlService.createHtmlOutput(`
+    <script>
+      window.parent.updateProgress(${current}, ${total});
+      if (${current} === ${total}) {
+        window.parent.showDoneMessage();
+      }
+    </script>
+  `);
+  SpreadsheetApp.getUi().showModalDialog(html, "Đang gửi...");
+}
