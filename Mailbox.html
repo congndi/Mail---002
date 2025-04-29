@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<base target="_top">
+	<link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900|Material+Icons" rel="stylesheet"
+		type="text/css">
+	<link href="https://cdn.jsdelivr.net/npm/quasar@1.11.3/dist/quasar.min.css" rel="stylesheet" type="text/css">
+	<style>
+		.q-pa-none {
+			padding: 0 !important
+		}
+
+		.sc-bar::-webkit-scrollbar-track {
+			-webkit-box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.3);
+			background-color: #F5F5F5;
+		}
+
+		.sc-bar::-webkit-scrollbar {
+			width: 5px;
+			background-color: #F5F5F5;
+		}
+
+		.sc-bar::-webkit-scrollbar-thumb {
+			background-color: #2196f3;
+			background-image: -webkit-gradient(linear, 0 0, 0 100%, color-stop(.5, rgba(255, 255, 255, .2)), color-stop(.5, transparent), to(transparent));
+		}
+	</style>
+</head>
+
+<body>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.19.2/axios.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/vue@^2.0.0/dist/vue.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/quasar@1.11.3/dist/quasar.umd.min.js"></script>
+	<div id="q-app">
+		<div class="q-pa-sm">
+
+			<!-- {{row}} -->
+
+			<p>Số lượt gửi Email còn lại ngày hôm nay: <b>{{quota}}</b></p>
+
+			<q-input outlined v-model="mail.subject" label="Tiêu đề" class="q-mb-md">
+				<template v-slot:append>
+					<q-icon name="file_present" />
+				</template>
+			</q-input>
+  
+			<q-editor filled v-model="mail.content" label="Nội dung" class="q-mb-md"       :definitions="{
+        bold: {label: 'Bold', icon: null, tip: 'My bold tooltip'}
+      }">
+				<template v-slot:append>
+					<q-icon name="title" />
+				</template>
+			</q-editor>
+
+      <q-input outlined v-model="mail.res_column" label="Cột trả trạng thái gửi" class="q-mb-md">
+				<template v-slot:append>
+					<q-icon name="file_present" />
+				</template>
+			</q-input>
+
+      <q-input outlined v-model="mail.res_email_column" label="Cột trả Email gửi" class="q-mb-md">
+				<template v-slot:append>
+					<q-icon name="file_present" />
+				</template>
+			</q-input>
+
+
+			<p>Bạn có thể đưa Dữ liệu của dòng theo cú pháp [tên_cột] trong tiêu đề và nội dung</p>
+
+			<template v-if="!firstLoading">
+				<p>Tổng số khách hàng: <b>{{people.length}}</b></p>
+        <p>Tổng số Email đã gửi: <b>{{sent}}</b></p>
+				
+				<q-btn color="primary" icon="mail" label="Gửi Email" @click="sendMail" ::disable="isSending" />
+			</template>
+
+			<div class="flex flex-center" v-else>
+				<q-spinner-hourglass color="purple" size="4em" />
+			</div>
+
+
+		</div>
+
+	</div>
+
+	<script>
+		/*
+        Example kicking off the UI. Obviously, adapt this to your specific needs.
+        Assumes you have a <div id="q-app"></div> in your <body> above
+       */
+      //console.log(localStorage);
+      //console.log(google.script.run.setValueCell());
+     //const pluginOptions = google.script.run.withSuccessHandler((r) => console.log(r)).q_sortware_list()
+     
+      const DATE_PICKER_LOCALE_VN = {
+        days: 'Chủ Nhật_Thứ Hai_Thứ Ba_Thứ Tư_Thứ Năm_Thứ Sáu_Thứ Bảy'.split('_'),
+        daysShort: 'CN_Th2_Th3_Th4_Th5_Th6_Th7'.split('_'),
+        months: 'Tháng 1_Tháng 2_Tháng 3_Tháng 4_Tháng 5_Tháng 6_Tháng 7_Tháng 8_Tháng 9_Tháng 10_Tháng 11_Tháng 12'.split('_'),
+        monthsShort: 'Tháng 1_Tháng 2_Tháng 3_Tháng 4_Tháng 5_Tháng 6_Tháng 7_Tháng 8_Tháng 9_Tháng 10_Tháng 11_Tháng 12'.split('_'),
+        firstDayOfWeek: 1
+      }
+
+     
+     var vue =  new Vue({
+        el: '#q-app',
+        data: function () {
+          return {
+             firstLoading: true,
+             isSending: false,
+
+             data: [],
+             mail: {
+               subject: null,
+               content: null,
+               res_column: null,
+               res_email_column: null
+             },
+             people: [],
+             done: [],
+             selection: [],
+             options: [],
+             lang: DATE_PICKER_LOCALE_VN,
+             quota: 0,
+             sent: 0,
+          
+          }
+        },
+        methods: {
+          CONFIRM(text){
+            return new Promise((res, rej) => {
+              this.$q.dialog({
+                title: 'Xác nhận',
+                message: text,
+                cancel: true,
+                persistent: true,
+                
+              }).onOk(() => {
+                res(true)
+              }).onCancel(() => {
+                res(false)
+
+              })
+            })
+          },
+          NOTIFY(msg, type = 1) {
+            this.$q.notify({
+                message: msg,
+                progress: true,
+                type: type == 1 ? 'positive' : 'negative',
+                color: type == 1 ? 'green' : 'red',
+                position: 'top',
+                timeout: 2000
+            })
+        },
+          sendMailPromise(data){
+            return new Promise((res, rej) => {
+              google.script.run.withSuccessHandler((r) => res(r)).q_send_mail(data)
+            })
+          },
+          async sendMail(){
+              if(!this.mail.subject) {
+                this.NOTIFY('Hãy nhập tiêu đề Email', false)
+                return;
+              }
+              if(!this.mail.content) {
+                this.NOTIFY('Hãy nhập nội dung Email', false)
+                return;
+              }
+              
+              const confirm = await this.CONFIRM('Đồng ý gửi Email')
+              if(!confirm)
+                return;
+
+              let isLimit = false;
+              this.isSending = true;
+              
+            
+
+               google.script.run.withSuccessHandler((r) => console.log(r)).sendMailAll(this.mail)
+
+          },
+          
+        },
+        watch: {
+          'row.Soft_Id': function(){
+            const software = this.options.find(el => el.value == this.row.Soft_Id)
+            this.row.Soft_Name = software?.label ?? null
+            this.row.Price = software?.price ?? null
+          }
+        },
+        created(){
+            google.script.run.withSuccessHandler((r) => {
+              this.people = r.emails
+              this.selection = r.emails
+              this.quota = r.quota
+              this.firstLoading = false
+              // console.log(r)
+            }).q_email_list()
+        }
+        
+      })
+
+	</script>
+</body>
+
+</html>
